@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-cloud-resume
+
+  Sample SAM Template for aws-cloud-resume
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 3
+    MemorySize: 128
+
+Resources:
+  MyWebsite:
+    Type: AWS::S3::Bucket     
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        IgnorePublicAcls: false
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+      BucketName: hiten-cloud-resume
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Id: MyPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Join
+              - ""
+              - - "arn:aws:s3:::"
+                - !Ref MyWebsite
+                - /*
+      Bucket: !Ref MyWebsite   
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: hiten-cloud-resume
+      BillingMode: PROVISIONED
+      AttributeDefinitions:
+        - AttributeName: "ID"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "ID"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  GetVisitorsFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: hiten-cloud-resume
+      CodeUri: functions/get_visitors_function/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Events:
+        CatchAll:
+          Type: Api
+          Properties:
+            Path: /get
+            Method: get
+
+  PutVisitorsFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: hiten-cloud-resume
+      CodeUri: functions/put_visitors_function/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Events:
+        CatchAll:
+          Type: Api
+          Properties:
+            Path: /put
+            Method: get
+
+  MyDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        ViewerCertificate:
+          AcmCertificateArn: !Ref MyCertificate
+          SslSupportMethod: sni-only
+        Aliases:
+          - hitenchawda.online
+        DefaultCacheBehavior:
+          ViewerProtocolPolicy: allow-all
+          TargetOriginId: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
+          DefaultTTL: 0
+          MinTTL: 0
+          MaxTTL: 0
+          ForwardedValues:
+            QueryString: false
+        Origins:
+          - DomainName: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
+            Id: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+        Enabled: "true"
+        DefaultRootObject: index.html
+
+  # MyRoute53Record:
+  #   Type: "AWS::Route53::RecordSetGroup"
+  #   Properties: 
+  #     HostedZoneId: Z00198232TK6ZSRGMPYYV
+  #     RecordSets:
+  #       - Name: hitenchawda.online
+  #         Type: A
+  #         AliasTarget:
+  #           HostedZoneId: Z2FDTNDATAQYW2
+  #           DNSName: !GetAtt MyDistribution.DomainName
+      
+  MyCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: hitenchawda.online
+      ValidationMethod: DNS
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  # HelloWorldFunction:
+  #   Description: "Hello World Lambda Function ARN"
+  #   Value: !GetAtt HelloWorldFunction.Arn
+  GetVisitorsFunction:
+    Description: "Get Visitors Lambda Function ARN"
+    Value: !GetAtt GetVisitorsFunction.Arn
+  PutVisitorsFunction:
+    Description: "Put Visitors Lambda Function ARN"
+    Value: !GetAtt PutVisitorsFunction.Arn
+  # HelloWorldFunctionIamRole:
+  #   Description: "Implicit IAM Role created for Hello World function"
+  #   Value: !GetAtt HelloWorldFunctionRole.Arn

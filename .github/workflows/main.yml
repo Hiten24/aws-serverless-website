@@ -1,0 +1,25 @@
+name: main
+on: 
+  pull_request:
+    branches: [main]
+env:
+  PY_VERSION: 3.12.x
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VERSION }}
+          cache: 'pip' # caching pip dependencies 
+
+      - name: Install dependencies
+        run: pip install -r test/requirements.txt
+
+      - name: Run unit test cases
+        run: |
+          cd test/unit 
+          pytest 
