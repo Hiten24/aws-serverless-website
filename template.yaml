@@ -11,6 +11,30 @@ Globals:
     Timeout: 3
     MemorySize: 128
 
+Parameters:
+  BucketNameParameter:
+    Description: Enter Bucket Name for static site.
+    Type: String
+    Default: hiten-cloud-resume
+  DynamoDBTableNameParameter:
+    Description: Enter Table Name for DynamoDB
+    Type: String
+    Default: hiten-cloud-resume
+  DomainNameParameter:
+    Description: Domain name
+    Type: String
+    Default: hitenchawda.online
+  SiteSubDomainNameParameter:
+    Description: Domain to host static site.
+    Type: String
+    Default: cloud.
+  ApiSubDomainNameParameter:
+    Description: Domain to host api.
+    Type: String
+    Default: api.
+
+  
+
 Resources:
   MyWebsite:
     Type: AWS::S3::Bucket     
@@ -22,7 +46,7 @@ Resources:
         RestrictPublicBuckets: false
       WebsiteConfiguration:
         IndexDocument: index.html
-      BucketName: hiten-cloud-resume
+      BucketName: !Ref BucketNameParameter
 
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -45,7 +69,7 @@ Resources:
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: hiten-cloud-resume
+      TableName: !Ref DynamoDBTableNameParameter
       BillingMode: PROVISIONED
       AttributeDefinitions:
         - AttributeName: "ID"
@@ -54,15 +78,15 @@ Resources:
         - AttributeName: "ID"
           KeyType: "HASH"
       ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
 
   GetVisitorsFunction:
     Type: AWS::Serverless::Function 
     Properties:
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: hiten-cloud-resume
+            TableName: !Ref DynamoDBTableNameParameter
       CodeUri: functions/get_visitors_function/
       Handler: app.lambda_handler
       Runtime: python3.9
@@ -74,13 +98,15 @@ Resources:
           Properties:
             Path: /get
             Method: get
+            RestApiId:
+              Ref: ApiGatewayApi
 
   PutVisitorsFunction:
     Type: AWS::Serverless::Function 
     Properties:
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: hiten-cloud-resume
+            TableName: !Ref DynamoDBTableNameParameter
       CodeUri: functions/put_visitors_function/
       Handler: app.lambda_handler
       Runtime: python3.9
@@ -92,6 +118,8 @@ Resources:
           Properties:
             Path: /put
             Method: get
+            RestApiId:
+              Ref: ApiGatewayApi
 
   MyDistribution:
     Type: AWS::CloudFront::Distribution
@@ -101,22 +129,31 @@ Resources:
           AcmCertificateArn: !Ref MyCertificate
           SslSupportMethod: sni-only
         Aliases:
-          - hitenchawda.online
+          - !Join ['', [!Ref SiteSubDomainNameParameter, !Ref DomainNameParameter]]
         DefaultCacheBehavior:
           ViewerProtocolPolicy: allow-all
-          TargetOriginId: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
+          TargetOriginId: !Ref BucketNameParameter
           DefaultTTL: 0
           MinTTL: 0
           MaxTTL: 0
           ForwardedValues:
             QueryString: false
         Origins:
-          - DomainName: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
-            Id: hiten-cloud-resume.s3-website-us-east-1.amazonaws.com
+          - DomainName: !Join ['', [!Ref MyWebsite, '.s3.amazonaws.com']]
+            Id: !Ref BucketNameParameter
             CustomOriginConfig:
               OriginProtocolPolicy: http-only
         Enabled: "true"
         DefaultRootObject: index.html
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties: 
+      StageName: Prod
+      Domain:
+        DomainName:
+          !Join ['', [!Ref ApiSubDomainNameParameter, !Ref DomainNameParameter]]
+        CertificateArn: !Ref MyCertificate
 
   # MyRoute53Record:
   #   Type: "AWS::Route53::RecordSetGroup"
@@ -132,16 +169,18 @@ Resources:
   MyCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: hitenchawda.online
+      DomainName: !Ref DomainNameParameter
       ValidationMethod: DNS
+      SubjectAlternativeNames:
+        - !Join ['', ['*.', !Ref DomainNameParameter]]
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  # HelloWorldApi:
+  #   Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+  #   Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
   # HelloWorldFunction:
   #   Description: "Hello World Lambda Function ARN"
   #   Value: !GetAtt HelloWorldFunction.Arn
