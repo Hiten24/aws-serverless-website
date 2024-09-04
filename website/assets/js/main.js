@@ -2,8 +2,8 @@
 const counter = document.querySelector(".visitor-count");
 async function updateVisitCounter() {
     console.log("running update visior function")
-    let putFunctionURL = 'https://guzxgrc1p7.execute-api.us-east-1.amazonaws.com/Prod/put'
-    let getFunctionURL = 'https://guzxgrc1p7.execute-api.us-east-1.amazonaws.com/Prod/get'
+    let putFunctionURL = 'https://api.hitenchawda.online/put'
+    let getFunctionURL = 'https://api.hitenchawda.online/get'
     fetch(putFunctionURL)
         .then(() => fetch(getFunctionURL))
         .then(response => response.json())
